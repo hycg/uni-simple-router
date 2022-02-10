@@ -4,20 +4,24 @@
 		<view class="text-area">
 			<text class="title">{{title}}</text>
 		</view>
-		<div>
+<!-- 		<div>
 			<childComponent></childComponent>
 		</div>
 		<button type="default" @click="gotoPage">点我去page2</button>
 		<button type="primary" @click="gotoPage1('../page4/page4')">传递中文</button>
-		<button type="warn" @click="gotoPage1('/pages/builtIn/builtIn')">点我去获取内置地址</button>
+		<button type="warn" @click="gotoPage1('/pages/builtIn/builtIn')">点我去获取内置地址</button> -->
+		
 		<!-- #ifdef MP-WEIXIN -->
 		<button type="default" @click="forceEach">微信小程序看到我，强制触发</button>
 		<!-- #endif -->
 		
-		
+<!-- 		
 		<button type="primary" @click="$Router.push({name:'nvue1'})">去nvue1测试页</button>
 		
 		<button type="primary" @click="gotoTabPage">去tab2测试页面</button>
+		<button type="default" @click="gotoPage2">深度传参</button> -->
+		
+		
 	</view>
 </template>
 
@@ -35,15 +39,21 @@
 		onTabItemTap(){
 			console.log('@@@@@@@@@@@@@-----tab1页面被点击------@@@@@@@@@@@@')
 		},
+		beforeMount(){
+			console.log('index-----beforeMount')
+		},
 		created(){
 			console.log('index-----created')
 		},
 		mounted(){
 			console.log('index-----mounted')
 		},
-		onLoad() {
-			console.log('index-----onload')
-			console.log(this.Route)
+		onReady(){
+			console.log('index-----onReady')	
+		},
+		onLoad(e) {
+			console.log(e)
+			console.log('index-----onload')	
 		},
 		onShow() {
 			console.log('index-----onShow')
@@ -75,25 +85,42 @@
 			},
 			gotoPage1(url='/pages/page4/page4'){
 				uni.navigateTo({
-					url:`${url}?msg=的挥洒U盾好撒第三大厦发的撒321312*（￥#%4`,
-					success:()=>{
+					url:`${url}?msg=的挥洒U盾好撒第三大厦发的撒321312*（￥#4`,
+					events:{
+						    acceptDataFromOpenedPage: function(data) {
+						      console.log(data)
+						    },
+						    someEvent: function(data) {
+						      console.log(data)
+						    }
+					},
+					success:(res)=>{
+						console.log(res);
+						res.eventChannel.emit('acceptDataFromOpenerPage', { data: 'test' })
 						console.log('跳转成功')
 					},
 				})
 			},
+			gotoPage2(){
+				this.$Router.push({
+					path:'/beforeRouteLeave',
+					query:{
+						targetyutk:0,
+						result:'你好',
+						jumpWay:'0',
+						测试:'666'
+						// status:true,
+						// list:[
+						// 	{
+						// 		id:1,
+						// 		name:333
+						// 	},
+						// ]
+						
+					}
+				})
+			},
 			gotoPage(){
-				// this.$Router.push({
-				// 	path:'/pages/404/404/666/444',
-				// 	query:{
-				// 		status:true,
-				// 		list:[
-				// 			{
-				// 				id:1
-				// 			},
-				// 		]
-				// 	}
-				// })
-				
 				
 				// this.$Router.push({
 				// 	name:'page2',

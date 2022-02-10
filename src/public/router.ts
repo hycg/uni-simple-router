@@ -1,6 +1,6 @@
 import {PromiseResolve, Router, uniBackApiRule, uniBackRule} from '../options/base';
 import {InstantiateConfig, LifeCycleConfig} from '../options/config';
-import {appProxyHook, indexProxyHook, lifeCycle, keyword} from '../helpers/config';
+import { lifeCycle, proxyHookDeps} from '../helpers/config';
 import {assertNewOptions, def, getDataType} from '../helpers/utils';
 import {registerRouterHooks, registerEachHooks} from '../helpers/lifeCycle';
 import {initMixins} from '../helpers/mixins'
@@ -10,14 +10,16 @@ import {rewriteMethod} from '../public/rewrite'
 let AppReadyResolve:PromiseResolve = () => {};
 const AppReady:Promise<void> = new Promise(resolve => (AppReadyResolve = resolve));
 
-function createRouter(params: InstantiateConfig):Router {
+function createRouter(
+    params: InstantiateConfig
+):Router {
     const options = assertNewOptions<InstantiateConfig>(params);
     const router:Router = {
         options,
         mount: [],
+        runId: 0,
         Vue: null,
-        appProxyHook: appProxyHook,
-        appletsProxyHook: indexProxyHook,
+        proxyHookDeps: proxyHookDeps,
         appMain: {},
         enterPath: '',
         $route: null,
@@ -67,7 +69,16 @@ function createRouter(params: InstantiateConfig):Router {
             initMixins(Vue, this);
             Object.defineProperty(Vue.prototype, '$Router', {
                 get() {
-                    return router;
+                    const actualData = router;
+
+                    Object.defineProperty(this, '$Router', {
+                        value: actualData,
+                        writable: false,
+                        configurable: false,
+                        enumerable: false
+                    });
+
+                    return Object.seal(actualData);
                 }
             });
             Object.defineProperty(Vue.prototype, '$Route', {
@@ -91,7 +102,6 @@ function createRouter(params: InstantiateConfig):Router {
             });
         }
     }
-    def(router, 'keyword', () => keyword);
     def(router, 'currentRoute', () => createRoute(router));
 
     router.beforeEach((to, from, next) => next());
@@ -99,7 +109,11 @@ function createRouter(params: InstantiateConfig):Router {
     return router;
 }
 
-function RouterMount(Vim:any, router:Router, el:string | undefined = '#app') :void|never {
+function RouterMount(
+    Vim:any,
+    router:Router,
+    el:string | undefined = '#app'
+) :void|never {
     if (getDataType<Array<any>>(router.mount) === '[object Array]') {
         router.mount.push({
             app: Vim,

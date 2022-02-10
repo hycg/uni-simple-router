@@ -1,6 +1,7 @@
-import {startAnimationRule, hookListRule, RoutesRule, navtoRule, navErrorRule, Router, objectAny, hookObjectRule, NAVTYPE, totalNextRoute, navRoute} from './base';
+import {startAnimationRule, hookListRule, RoutesRule, navtoRule, navErrorRule, Router, objectAny, NAVTYPE, totalNextRoute, navRoute} from './base';
 
 export type debuggerConfig=boolean|debuggerArrayConfig;
+export type platformRule='h5'|'app-plus'|'app-lets'|'mp-weixin'|'mp-baidu'|'mp-alipay'|'mp-toutiao'|'mp-qq'|'mp-360';
 
 export interface H5Config {
 	paramsToQuery?: boolean; // h5端上通过params传参时规则是vue-router 刷新会丢失 开启此开关将变成?连接的方式
@@ -24,6 +25,25 @@ export interface appletConfig {
     animationDuration?:number; // 页面切换时间，有助于路由锁精准解锁
 }
 
+type hookRule=(args:Array<any>, next:(args:Array<any>)=>void, router:Router)=>void;
+export interface proxyHooksConfig{
+    onLaunch?:hookRule;
+    onShow?:hookRule;
+    onHide?:hookRule;
+    onError?:hookRule;
+    onInit?:hookRule;
+    onLoad?:hookRule;
+    onReady?:hookRule;
+    onUnload?:hookRule;
+    onResize?:hookRule;
+    destroyed?:hookRule;
+    created?:hookRule;
+    beforeCreate?:hookRule;
+    beforeMount?:hookRule;
+    mounted?:hookRule;
+    beforeDestroy?:hookRule;
+}
+
 export interface debuggerArrayConfig{
     error?:boolean;
     warn?:boolean;
@@ -33,10 +53,11 @@ export interface debuggerArrayConfig{
 export interface InstantiateConfig {
     [key:string]:any;
     keepUniOriginNav?:boolean; // 重写uni-app的跳转方法；关闭后使用uni-app的原始方法跳转和插件api跳转等同
-    platform:'h5'|'app-plus'|'app-lets'|'mp-weixin'|'mp-baidu'|'mp-alipay'|'mp-toutiao'|'mp-qq'|'mp-360'; // 当前运行平台
+    platform:platformRule; // 当前运行平台
     h5?: H5Config;
 	APP?: AppConfig;
     applet?:appletConfig;
+    beforeProxyHooks?:proxyHooksConfig;
 	debugger?: debuggerConfig; // 是否处于开发阶段 设置为true则打印日志
 	routerBeforeEach?: (to:navtoRule, from:navtoRule, next:(rule?: navtoRule|false)=>void) => void; // router 前置路由函数 每次触发跳转前先会触发此函数
 	routerAfterEach?: (to:navtoRule, from:navtoRule, next?: Function) => void; // router 后置路由函数 每次触发跳转后会触发此函数
@@ -54,31 +75,3 @@ export interface LifeCycleConfig{
     routerErrorHooks: Array<(error:navErrorRule, router:Router)=>void>;
 }
 
-export interface baseAppHookConfig{
-    [key:string]:Array<hookObjectRule|Function>;
-    created:Array<hookObjectRule|Function>;
-    beforeMount:Array<hookObjectRule|Function>;
-    mounted:Array<hookObjectRule|Function>;
-    beforeDestroy:Array<hookObjectRule|Function>;
-    destroyed:Array<hookObjectRule|Function>;
-}
-
-export interface appVueHookConfig extends baseAppHookConfig{
-    onLaunch:Array<hookObjectRule|Function>;
-    onShow:Array<hookObjectRule|Function>;
-    onHide:Array<hookObjectRule|Function>;
-}
-export interface pageVueHookConfig extends baseAppHookConfig{
-    onShow:Array<hookObjectRule|Function>;
-    onHide:Array<hookObjectRule|Function>;
-    onLoad:Array<hookObjectRule|Function>;
-    onReady:Array<hookObjectRule|Function>;
-    onUnload:Array<hookObjectRule|Function>;
-    onResize:Array<hookObjectRule|Function>;
-}
-
-export interface appletsVueHookConfig{
-    app:appVueHookConfig;
-    page:pageVueHookConfig,
-    component:baseAppHookConfig[]
-}

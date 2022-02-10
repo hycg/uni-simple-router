@@ -8,9 +8,11 @@ import { forceGuardEach } from '../public/methods';
 import { assertParentChild, voidFun } from './utils';
 import { getEnterPath } from '../applets/appletPatch';
 import { mpPlatformReg } from './config';
+import {beforeProxyHook} from '../public/beforeProxyHook'
 
 let registerRouter:boolean = false;
 let onloadProxyOk:boolean = false;
+
 const appletProxy:{
     app:boolean;
     page:string;
@@ -33,6 +35,7 @@ export function getMixins(Vue:any, router: Router):{
     const toggleHooks = {
         h5: {
             beforeCreate(this: any): void {
+                beforeProxyHook(this, router);
                 if (this.$options.router) {
                     router.$route = this.$options.router; // 挂载vue-router到路由对象下
                     let vueRouteMap:RoutesRule[]|RoutesRule = [];
@@ -50,38 +53,47 @@ export function getMixins(Vue:any, router: Router):{
         },
         'app-plus': {
             beforeCreate(this: any): void {
+                beforeProxyHook(this, router);
                 if (!registerRouter) {
                     registerRouter = true;
-                    proxyPageHook(this, router, 'appProxyHook', 'app');
+                    proxyPageHook(this, router, 'app');
                     registerLoddingPage(router);
                 }
             }
         },
         'app-lets': {
             beforeCreate(this: any): void {
+                beforeProxyHook(this, router);
+
+                // 保证这个函数不会被重写
+                const pluginMark = $npm_package_name;
+                voidFun(pluginMark);
+
+                let isProxy:boolean = true;
                 const pageType:pageTypeRule = this.$options.mpType;
-                if (pageType === 'component' && !onloadProxyOk) {
-                    const isProxy = assertParentChild(appletProxy['page'], this);
-                    if (isProxy) {
-                        proxyPageHook(this, router, 'appletsProxyHook', pageType)
+
+                if (onloadProxyOk) {
+                    return
+                }
+
+                if (pageType === 'component') {
+                    isProxy = assertParentChild(appletProxy['page'], this);
+                } else {
+                    if (pageType === 'page') {
+                        appletProxy[pageType] = getEnterPath(this, router);
+                        router.enterPath = appletProxy[pageType]; // 我不确定在不同端是否都是同样的变现？可能有的为非绝对路径？
+                    } else {
+                        appletProxy[pageType] = true;
                     }
-                } else if (pageType !== 'component') {
-                    if (!appletProxy[pageType]) { // 没有处理
-                        if (pageType === 'page') {
-                            appletProxy[pageType] = getEnterPath(this, router);
-                            router.enterPath = appletProxy[pageType]; // 我不确定在不同端是否都是同样的变现？可能有的为非绝对路径？
-                        } else {
-                            appletProxy[pageType] = true;
-                        }
-                        proxyPageHook(this, router, 'appletsProxyHook', pageType)
-                    }
+                }
+                if (isProxy) {
+                    proxyPageHook(this, router, pageType);
                 }
             },
             onLoad(this: any):void{
                 // 保证这个函数不会被重写，否则必须在启动页写onLoad
-                // eslint-disable-next-line
                 const pluginMark = $npm_package_name;
-                if (pluginMark)voidFun(pluginMark);
+                voidFun(pluginMark);
 
                 if (!onloadProxyOk && assertParentChild(appletProxy['page'], this)) {
                     onloadProxyOk = true;

@@ -11,32 +11,7 @@ export declare interface appletConfig {
     animationDuration?: number;
 }
 
-export declare interface appletsVueHookConfig {
-    app: appVueHookConfig;
-    page: pageVueHookConfig;
-    component: baseAppHookConfig[];
-}
-
-export declare interface appVueHookConfig extends baseAppHookConfig {
-    onLaunch: Array<hookObjectRule | Function>;
-    onShow: Array<hookObjectRule | Function>;
-    onHide: Array<hookObjectRule | Function>;
-}
-
-export declare type appVueSortHookRule = 'beforeCreate' | 'created' | 'beforeMount' | 'mounted' | 'onLaunch' | 'onShow' | 'onHide' | 'beforeDestroy' | 'destroyed';
-
 export declare type backTypeRule = 'backbutton' | 'navigateBack';
-
-export declare interface baseAppHookConfig {
-    [key: string]: Array<hookObjectRule | Function>;
-    created: Array<hookObjectRule | Function>;
-    beforeMount: Array<hookObjectRule | Function>;
-    mounted: Array<hookObjectRule | Function>;
-    beforeDestroy: Array<hookObjectRule | Function>;
-    destroyed: Array<hookObjectRule | Function>;
-}
-
-export declare type comVueSortHookRule = 'beforeCreate' | 'created' | 'beforeMount' | 'mounted' | 'beforeDestroy' | 'destroyed';
 
 export declare function createRouter(params: InstantiateConfig): Router;
 
@@ -85,6 +60,8 @@ export declare interface hookObjectRule {
     hook: Function;
 }
 
+declare type hookRule = (args: Array<any>, next: (args: Array<any>) => void, router: Router) => void;
+
 export declare enum hookToggle {
     'beforeHooks' = "beforeEach",
     'afterHooks' = "afterEach",
@@ -94,10 +71,11 @@ export declare enum hookToggle {
 export declare interface InstantiateConfig {
     [key: string]: any;
     keepUniOriginNav?: boolean;
-    platform: 'h5' | 'app-plus' | 'app-lets' | 'mp-weixin' | 'mp-baidu' | 'mp-alipay' | 'mp-toutiao' | 'mp-qq' | 'mp-360';
+    platform: platformRule;
     h5?: H5Config;
     APP?: AppConfig;
     applet?: appletConfig;
+    beforeProxyHooks?: proxyHooksConfig;
     debugger?: debuggerConfig;
     routerBeforeEach?: (to: navtoRule, from: navtoRule, next: (rule?: navtoRule | false) => void) => void;
     routerAfterEach?: (to: navtoRule, from: navtoRule, next?: Function) => void;
@@ -156,8 +134,6 @@ export declare enum navtypeToggle {
     'back' = "navigateBack"
 }
 
-export declare type notCallProxyHookRule = 'onHide' | 'beforeDestroy' | 'destroyed' | 'onUnload' | 'onResize';
-
 export declare type objectAny = {
     [propName: string]: any;
 };
@@ -168,20 +144,43 @@ export declare interface originMixins extends uniNavApiRule {
 
 export declare type pageTypeRule = 'app' | 'page' | 'component';
 
-export declare interface pageVueHookConfig extends baseAppHookConfig {
-    onShow: Array<hookObjectRule | Function>;
-    onHide: Array<hookObjectRule | Function>;
-    onLoad: Array<hookObjectRule | Function>;
-    onReady: Array<hookObjectRule | Function>;
-    onUnload: Array<hookObjectRule | Function>;
-    onResize: Array<hookObjectRule | Function>;
-}
-
-export declare type pageVueSortHookRule = 'beforeCreate' | 'created' | 'beforeMount' | 'mounted' | 'onLoad' | 'onReady' | 'onShow' | 'onResize' | 'onHide' | 'beforeDestroy' | 'destroyed' | 'onUnload';
+export declare type platformRule = 'h5' | 'app-plus' | 'app-lets' | 'mp-weixin' | 'mp-baidu' | 'mp-alipay' | 'mp-toutiao' | 'mp-qq' | 'mp-360';
 
 export declare type PromiseResolve = (value?: void | PromiseLike<void> | undefined) => void;
 
+export declare type proxyDepsRule = {
+    resetIndex: Array<number>;
+    hooks: {
+        [key: number]: {
+            proxyHook: () => void;
+            callHook: (enterPath: string) => void;
+            resetHook: () => void;
+        };
+    };
+    options: {
+        [key: number]: Array<any>;
+    };
+};
+
 export declare type proxyHookName = 'beforeHooks' | 'afterHooks';
+
+export declare interface proxyHooksConfig {
+    onLaunch?: hookRule;
+    onShow?: hookRule;
+    onHide?: hookRule;
+    onError?: hookRule;
+    onInit?: hookRule;
+    onLoad?: hookRule;
+    onReady?: hookRule;
+    onUnload?: hookRule;
+    onResize?: hookRule;
+    destroyed?: hookRule;
+    created?: hookRule;
+    beforeCreate?: hookRule;
+    beforeMount?: hookRule;
+    mounted?: hookRule;
+    beforeDestroy?: hookRule;
+}
 
 export declare type reloadNavRule = totalNextRoute | false | undefined | string;
 
@@ -199,21 +198,18 @@ export declare enum rewriteMethodToggle {
 }
 
 export declare interface Router {
-    [key: string]: any;
     readonly lifeCycle: LifeCycleConfig;
     readonly options: InstantiateConfig;
     $lockStatus: boolean;
     $route: object | null;
     enterPath: string;
+    runId: number;
     Vue: any;
-    appProxyHook: {
-        app: appVueHookConfig;
-    };
     appMain: {
         NAVTYPE: reNavMethodRule | reNotNavMethodRule;
         path: string;
     } | {};
-    appletsProxyHook: appletsVueHookConfig;
+    proxyHookDeps: proxyDepsRule;
     routesMap: routesMapRule | {};
     mount: Array<{
         app: any;
@@ -319,12 +315,19 @@ export declare interface uniNavApiRule {
     };
 }
 
+export declare type vueHookNameRule = 'onLaunch' | 'onShow' | 'onHide' | 'onError' | 'onInit' | 'onLoad' | 'onReady' | 'onUnload' | 'onResize' | 'created' | 'beforeMount' | 'mounted' | 'beforeDestroy' | 'destroyed';
+
+export declare type vueOptionRule = {
+    [propName in vueHookNameRule]: Array<Function> | undefined;
+};
+
 export { }
 
 // @ts-ignore
 declare module 'vue/types/vue' {
-	interface Vue {
-		$Router: Router;
-		$Route: routeRule;
-	}
+    interface Vue {
+        $Router: Router;
+        $Route: routeRule;
+    }
 }
+    

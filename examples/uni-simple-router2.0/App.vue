@@ -1,21 +1,19 @@
 <script>
 	export default {
+		beforeMount(){
+			console.log('appvue-----beforeMount')
+		},
 		created(){
-			console.log('appvue--created----created')
+			console.log('appvue----created')
 		},
 		mounted(){
-			console.log('appvue--mounted----mounted')
+			console.log('appvue----mounted')
 		},
 		onLaunch: function() {
+			console.log(this)
 			console.log('App Launch')
-			this.$AppReady.then(()=>{
-				console.log(this.$Route)	
-			})
 		},
 		onShow: function() {
-			this.$AppReady.then(()=>{
-				console.log(this.$Route)	
-			})
 			console.log('App Show')
 		},
 		onHide: function() {

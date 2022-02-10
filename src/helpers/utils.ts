@@ -1,6 +1,6 @@
-import {appVueHookConfig, H5Config, pageVueHookConfig, InstantiateConfig, appletsVueHookConfig, baseAppHookConfig} from '../options/config';
-import {RoutesRule, routesMapRule, routesMapKeysRule, Router, totalNextRoute, objectAny, navErrorRule, hookObjectRule, notCallProxyHookRule, NAVTYPE, navRoute, pageTypeRule} from '../options/base';
-import {baseConfig, notCallProxyHook, proxyVueSortHookName, keyword} from '../helpers/config';
+import {H5Config, InstantiateConfig} from '../options/config';
+import {RoutesRule, routesMapRule, routesMapKeysRule, Router, totalNextRoute, objectAny, navErrorRule, NAVTYPE, navRoute, uniBackApiRule, uniBackRule} from '../options/base';
+import {baseConfig} from '../helpers/config';
 import {ERRORHOOK} from '../public/hooks'
 import {warnLock} from '../helpers/warn'
 import { createRoute, navjump } from '../public/methods';
@@ -145,7 +145,8 @@ export function notRouteTo404(
 export function routesForMapRoute(
     router: Router,
     path: string,
-    mapArrayKey:Array<routesMapKeysRule>
+    mapArrayKey:Array<routesMapKeysRule>,
+    deepFind:boolean|undefined = false
 ):RoutesRule|never {
     if (router.options.h5?.vueRouterDev) {
         return {path}
@@ -179,6 +180,16 @@ export function routesForMapRoute(
             }
         }
     }
+    // 【Fixe】 https://github.com/SilurianYang/uni-simple-router/issues/302    2021-8-4 16:38:44
+    if (deepFind) {
+        return ({} as RoutesRule);
+    }
+    if (routesMap['aliasPathMap']) {
+        const results = routesForMapRoute(router, path, ['aliasPathMap'], true);
+        if (Object.keys(results).length > 0) {
+            return results;
+        }
+    }
     if (wildcard !== '') {
         return getWildcardRule(router);
     }
@@ -191,6 +202,20 @@ export function getDataType<T>(data:T):string {
 
 export function copyData<T>(object:T): T {
     return JSON.parse(JSON.stringify(object))
+}
+
+export function removeSimpleValue(
+    array:Array<string|number>,
+    value:string
+):Boolean {
+    for (let i = 0; i < array.length; i++) {
+        const it = array[i];
+        if (it === value) {
+            array.splice(i, 1);
+            return true
+        }
+    }
+    return false
 }
 
 export function getUniCachePage<T extends objectAny>(pageIndex?:number):T|[] {
@@ -339,6 +364,7 @@ export function lockDetectWarn(
     to:string|number|totalNextRoute|navRoute,
     navType:NAVTYPE,
     next:Function,
+    uniActualData:uniBackApiRule|uniBackRule|undefined = {},
     passiveType?:'beforeHooks'| 'afterHooks'
 ):void{
     if (passiveType === 'afterHooks') {
@@ -349,145 +375,14 @@ export function lockDetectWarn(
         if (router.$lockStatus) {
             (router.options.routerErrorEach as (error: navErrorRule, router:Router) => void)({
                 type: 2,
-                msg: '当前页面正在处于跳转状态，请稍后再进行跳转....'
+                msg: '当前页面正在处于跳转状态，请稍后再进行跳转....',
+                NAVTYPE: navType,
+                uniActualData
             }, router);
         } else {
             next();
         }
     }
-}
-
-export function replaceHook(
-    router:Router,
-    vueVim:any,
-    proxyHookKey:'appProxyHook'|'appletsProxyHook',
-    pageType:pageTypeRule,
-):void{
-    const vueOptions:appVueHookConfig|pageVueHookConfig = vueVim.$options;
-    const proxyHook = router[proxyHookKey][(pageType as 'app')];
-    let proxyHookChild:baseAppHookConfig|objectAny = {};
-    if (getDataType(proxyHook) === '[object Array]') {
-        proxyHookChild = {
-            beforeCreate: [],
-            created: [],
-            beforeMount: [],
-            mounted: [],
-            beforeDestroy: [],
-            destroyed: []
-        }
-    }
-    if (proxyHook != null) {
-        const proxyName = proxyVueSortHookName[pageType];
-        for (let i = 0; i < proxyName.length; i++) {
-            const keyName = proxyName[i];
-            const originHook = vueOptions[keyName] as Array<Function>|undefined;
-            if (getDataType<Array<Function>|undefined>(originHook) === '[object Array]') {
-                if ((originHook as Array<Function>).length === 1 && (originHook as Array<Function>).toString().includes($npm_package_name)) {
-                    continue;
-                }
-                const proxyInfo:hookObjectRule = {
-                    options: [],
-                    hook: Function
-                };
-                const hook = (originHook as Array<Function>).splice((originHook as Array<Function>).length - 1, 1, (...options:Array<any>) => (proxyInfo.options = options))[0]
-                proxyInfo.hook = function resetHook(enterPath:string):Function {
-                    if (router.enterPath.replace(/^\//, '') !== enterPath.replace(/^\//, '') && pageType !== 'app') {
-                        return () => {};
-                    }
-                    if (!notCallProxyHook.includes(keyName as notCallProxyHookRule)) {
-                        hook.apply(vueVim, proxyInfo.options)
-                    }
-                    return () => {
-                        (originHook as Array<Function>).splice((originHook as Array<Function>).length - 1, 1, hook);
-                    };
-                }
-                if (Object.keys(proxyHookChild).length > 0) {
-                    proxyHookChild[(keyName as string)] = [proxyInfo];
-                } else {
-                    proxyHook[keyName] = [proxyInfo]
-                }
-            }
-        }
-        if (Object.keys(proxyHookChild).length > 0) {
-            // @ts-ignore
-            (proxyHook as appletsVueHookConfig['component']).push(proxyHookChild);
-        }
-    }
-}
-export function callHook(
-    key:pageTypeRule,
-    value:objectAny,
-    enterPath:string
-):Array<Function> {
-    const resetHookFun:Array<Function> = [];
-    // Fixe: https://github.com/SilurianYang/uni-simple-router/issues/206
-    // Fixe: https://github.com/SilurianYang/uni-simple-router/issues/224
-    const hookList = proxyVueSortHookName[key];
-    for (let i = 0; i < hookList.length; i++) {
-        const [origin] = value[hookList[i]];
-        if (origin && origin.hook) {
-            resetHookFun.push(origin.hook(enterPath))
-        }
-    }
-    return resetHookFun;
-}
-export function resetPageHook(
-    router:Router,
-    enterPath:string
-):void{
-    // Fixe: https://github.com/SilurianYang/uni-simple-router/issues/206
-    const pathInfo = enterPath.trim().match(/^(\/?[^\?\s]+)(\?[\s\S]*$)?$/);
-    if (pathInfo == null) {
-        throw new Error(`还原hook失败。请检查 【${enterPath}】 路径是否正确。`);
-    }
-    enterPath = pathInfo[1];
-    let proxyHookKey:'appProxyHook'|'appletsProxyHook' = 'appletsProxyHook';
-    if (router.options.platform === 'app-plus') {
-        proxyHookKey = 'appProxyHook';
-    }
-    let resetHookFun:Array<Function> = [];
-    for (const [name, value] of Object.entries(router[proxyHookKey])) {
-        const key = name as pageTypeRule;
-        if (getDataType(value) === '[object Array]') {
-            for (let i = 0; i < value.length; i++) {
-                resetHookFun = resetHookFun.concat(callHook(key, value[i], enterPath));
-            }
-        } else {
-            resetHookFun = resetHookFun.concat(callHook(key, value, enterPath));
-        }
-    }
-    setTimeout(() => {
-        for (let i = 0; i < resetHookFun.length; i++) {
-            resetHookFun[i]();
-        }
-    }, 500)
-}
-
-export function reservedWord(
-    params:string|totalNextRoute
-):string|totalNextRoute {
-    if (typeof params === 'string') {
-        return params
-    }
-
-    const query = {
-        ...(copyData(params.params || {}) as object),
-        ...(copyData(params.query || {}) as object)
-    };
-    for (let i = 0; i < keyword.length; i++) {
-        const hasKey = keyword[i];
-        if (Reflect.has(query, hasKey)) {
-            if (getDataType(params.query) === '[object Object]') {
-                delete (params.query as objectAny)[hasKey];
-            }
-            if (getDataType(params.params) === '[object Object]') {
-                delete (params.params as objectAny)[hasKey];
-            }
-            warnLock(`${JSON.stringify(keyword)} 作为插件的保留字，在参数传递中不允许使用。已自动被过滤掉！换个参数名试试吧！ `)
-        }
-    }
-
-    return params
 }
 
 export function assertParentChild(
@@ -526,7 +421,7 @@ export function resolveAbsolutePath(
     }
     const query:string = paramsArray[2] || '';
     if (/^\.\/[^\.]+/.test(trimPath)) { // 当前路径下
-        const navPath:string = router.currentRoute.path + path;
+        const navPath:string = (router as unknown as {currentRoute:{path:string}}).currentRoute.path + path;
         return navPath.replace(/[^\/]+\.\//, '');
     }
     const relative = paramsArray[1].replace(/\//g, `\\/`).replace(/\.\./g, `[^\\/]+`).replace(/\./g, '\\.');
@@ -536,4 +431,36 @@ export function resolveAbsolutePath(
         throw new Error(`【${path}】 路径错误，尝试转成绝对路径失败，请手动转成绝对路径(10003)。`);
     }
     return route[0].path + query;
+}
+
+export function deepDecodeQuery(
+    query:objectAny
+):objectAny {
+    const formatQuery:objectAny = getDataType<objectAny>(query) === '[object Array]' ? [] : {};
+    const keys = Object.keys(query);
+    for (let i = 0; i < keys.length; i++) {
+        const key = keys[i];
+        const it = query[key];
+        if (typeof it === 'string') {
+            try {
+                let json = JSON.parse(decodeURIComponent(it));
+                if (typeof json !== 'object') {
+                    json = it;
+                }
+                formatQuery[key] = json;
+            } catch (error) {
+                try {
+                    formatQuery[key] = decodeURIComponent(it)
+                } catch (error) {
+                    formatQuery[key] = it
+                }
+            }
+        } else if (typeof it === 'object') {
+            const childQuery = deepDecodeQuery(it);
+            formatQuery[key] = childQuery
+        } else {
+            formatQuery[key] = it
+        }
+    }
+    return formatQuery
 }

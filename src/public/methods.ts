@@ -25,8 +25,8 @@ import {
     copyData,
     lockDetectWarn,
     getDataType,
-    reservedWord,
-    notRouteTo404
+    notRouteTo404,
+    deepDecodeQuery
 } from '../helpers/utils'
 import { transitionTo } from './hooks';
 import {createFullPath, createToFrom} from '../public/page'
@@ -44,7 +44,7 @@ export function lockNavjump(
             router.$lockStatus = true;
         }
         navjump(to as totalNextRoute, router, navType, undefined, forceNav, animation);
-    });
+    }, animation);
 }
 export function navjump(
     to:string|totalNextRoute,
@@ -80,7 +80,6 @@ export function navjump(
             to = backOptionsBuild(router, level, animation);
         }
     }
-    to = reservedWord(to);
     const {rule} = queryPageToMap(to, router);
     rule.type = navtypeToggle[navType];
     const toRule = paramsToQuery(router, rule);
@@ -131,11 +130,11 @@ export function navjump(
 export function backOptionsBuild(
     router:Router,
     level:number,
-    animation?:uniBackApiRule|uniBackRule,
+    animation:uniBackApiRule|uniBackRule|undefined = {},
 ):totalNextRoute {
-    const toRule = createRoute(router, level);
+    const toRule = createRoute(router, level, undefined, {NAVTYPE: 'back', ...animation});
     const navjumpRule:totalNextRoute = {
-        ...animation || {},
+        ...animation,
         path: toRule.path,
         query: toRule.query,
         delta: level
@@ -165,17 +164,20 @@ export function forceGuardEach(
     if (router.options.platform === 'h5') {
         throw new Error(`在h5端上使用：forceGuardEach 是无意义的，目前 forceGuardEach 仅支持在非h5端上使用`);
     }
-    const page = getUniCachePage<objectAny>(0);
-    if (Object.keys(page).length === 0) {
+    const currentPage = getUniCachePage<objectAny>(0);
+    if (Object.keys(currentPage).length === 0) {
         (router.options.routerErrorEach as (error: navErrorRule, router:Router) => void)({
             type: 3,
+            NAVTYPE: navType,
+            uniActualData: {},
+            level: 0,
             msg: `不存在的页面栈，请确保有足够的页面可用，当前 level:0`
         }, router);
     }
-    const {route, options} = page as objectAny;
+    const {route, options} = currentPage as objectAny;
     lockNavjump({
         path: `/${route}`,
-        query: options
+        query: deepDecodeQuery(options || {})
     }, router, navType, forceNav);
 }
 
@@ -183,6 +185,7 @@ export function createRoute(
     router:Router,
     level:number|undefined = 0,
     orignRule?:totalNextRoute,
+    uniActualData:objectAny|undefined = {},
 ):routeRule|never {
     const route:routeRule = {
         name: '',
@@ -211,7 +214,7 @@ export function createRoute(
         vueRoute = {...vueRoute, query: toQuery}
         route.path = vueRoute.path;
         route.fullPath = vueRoute.fullPath || '';
-        route.query = vueRoute.query || {};
+        route.query = deepDecodeQuery(vueRoute.query || {});
         route.NAVTYPE = rewriteMethodToggle[vueRoute.type as reNavMethodRule || 'reLaunch'];
     } else {
         let appPage:objectAny = {};
@@ -220,22 +223,22 @@ export function createRoute(
         } else {
             const page = getUniCachePage<objectAny>(level);
             if (Object.keys(page).length === 0) {
+                const {NAVTYPE: _NAVTYPE, ..._args} = uniActualData;
+                const errorMsg:string = `不存在的页面栈，请确保有足够的页面可用，当前 level:${level}`;
                 (router.options.routerErrorEach as (error: navErrorRule, router:Router) => void)({
                     type: 3,
-                    msg: `不存在的页面栈，请确保有足够的页面可用，当前 level:${level}`
+                    msg: errorMsg,
+                    NAVTYPE: _NAVTYPE,
+                    level,
+                    uniActualData: _args
                 }, router);
-                throw new Error(`不存在的页面栈，请确保有足够的页面可用，当前 level:${level}`)
+                throw new Error(errorMsg);
             }
             // Fixes: https://github.com/SilurianYang/uni-simple-router/issues/196
-            let pageOptions = (page as objectAny).options || {};
-            const originQuery = pageOptions.query;
-            if (originQuery != null && Object.keys(pageOptions).length === 1) {
-                pageOptions = JSON.parse(decodeURIComponent(originQuery))
-            }
-            const pageQuery = JSON.parse(decodeURIComponent(JSON.stringify(pageOptions)))
+            const pageOptions:objectAny = (page as objectAny).options || {};
             appPage = {
                 ...(page as objectAny).$page || {},
-                query: pageQuery,
+                query: deepDecodeQuery(pageOptions),
                 fullPath: decodeURIComponent(((page as objectAny).$page || {}).fullPath || '/' + (page as objectAny).route)
             }
             if (router.options.platform !== 'app-plus') {

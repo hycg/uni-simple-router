@@ -18,6 +18,8 @@ import {
 } from '../helpers/utils'
 import { navjump } from './methods';
 import { proxyH5Mount } from '../H5/proxyHook';
+import { addKeepAliveInclude } from '../H5/patch';
+import { tabIndexSelect } from '../app/appPatch';
 
 export const ERRORHOOK:Array<(error:navErrorRule, router:Router)=>void> = [
     (error, router) => router.lifeCycle.routerErrorHooks[0](error, router)
@@ -32,7 +34,10 @@ export const HOOKLIST: hookListRule = [
         router.$lockStatus = false;
         if (router.options.platform === 'h5') {
             proxyH5Mount(router);
+            // 【Fixe】 https://github.com/SilurianYang/uni-simple-router/issues/316  2021年12月10日14:30:13
+            addKeepAliveInclude(router);
         }
+        router.runId++;
         return callHook(router.lifeCycle.routerAfterHooks[0], to, from, router, next, false)
     }
 ];
@@ -145,6 +150,11 @@ export function loopCallHook(
     const hook = hooks[index];
     const errHook = ERRORHOOK[0];
     hook(router, matTo, matFrom, toRoute, (nextTo:reloadNavRule) => {
+        if (router.options.platform === 'app-plus') {
+            if (nextTo === false || (typeof nextTo === 'string' || typeof nextTo === 'object')) {
+                tabIndexSelect(matTo, matFrom);
+            }
+        }
         if (nextTo === false) {
             if (router.options.platform === 'h5') {
                 next(false);
